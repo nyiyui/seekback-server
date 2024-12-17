@@ -1,0 +1,7 @@
+CREATE TABLE samples(
+  id TEXT PRIMARY KEY,
+  start DATETIME NOT NULL,
+  duration INTEGER NOT NULL DEFAULT 0,
+  summary TEXT NOT NULL DEFAULT '',
+  transcript TEXT NOT NULL DEFAULT ''
+);

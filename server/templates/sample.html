@@ -1,0 +1,32 @@
+{{ template "base.html" $ }}
+{{ define "title" }}
+Sample {{ .ID }}
+{{ end }}
+{{ define "head-extra" }}
+<style>
+  #transcript textarea {
+    width: 100%;
+    height: 300px;
+  }
+</style>
+{{ end }}
+{{ define "body" }}
+<p>
+  ID: <code>{{ .sample.ID }}</code>
+</p>
+<p>
+  Start: <code>{{ .sample.Start }}</code>
+</p>
+<p>
+  Duration: {{ .sample.Duration }}
+</p>
+<section id="summary">
+  {{ .sample.Summary }}
+</section>
+<section id="transcript">
+  <textarea readonly>{{ .sample.Transcript }}</textarea>
+</section>
+<pre>
+{{ toPrettyJson . }}
+</pre>
+{{ end }}

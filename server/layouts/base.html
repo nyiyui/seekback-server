@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      main {
+        width: 900px;
+        margin: auto;
+      }
+      form {
+        display: table;
+        width: 100%;
+      }
+      form * {
+        display: table-row;
+      }
+      form input[type=submit] {
+        float: right;
+      }
+
+      body {
+        margin: 0;
+      }
+      nav {
+        position: sticky;
+        top: 0;
+        color: #ce86af;
+        background-color: #373b3e;
+        padding: 8px;
+        display: flex;
+        gap: 12px;
+        z-index: 10; /* make nav above events, etc */
+      }
+      nav a {
+        color: #ce86af;
+        text-decoration: none;
+      }
+      nav .right {
+        margin-left: auto;
+      }
+    </style>
+    <title>
+      {{ block "title" $ }}{{ end }}
+    </title>
+    {{ block "head-extra" $ }}{{ end }}
+  </head>
+  <body>
+    <nav id="nav-main">
+      <a href="/samples">Samples</a>
+      {{ if .login }}
+      <span class="right">
+      {{ .login.Login }}
+      (<a href="/login/settings">Settings</a>)
+      </span>
+      {{ end }}
+    </nav>
+    <main>
+      {{ template "body" $ }}
+    </main>
+    <footer>
+      Built using {{ buildInfo.GoVersion }}
+    </footer>
+  </body>
+</html>

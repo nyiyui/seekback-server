@@ -1,0 +1,29 @@
+{{ template "base.html" $ }}
+{{ define "title" }}
+Session Settings
+{{ end }}
+{{ define "body" }}
+<section id="login">
+  Logged in as:
+  <a href="{{ .login.HTMLURL }}">
+    <img src="{{ .login.AvatarURL }}" alt="avatar" style="width: 20px; height: 20px; vertical-align: text-bottom;" />
+    {{ .login.Login }}
+  </a>
+</section>
+<section id="timezone">
+  <p>
+    The current time in {{ .timezone }} is {{ now | formatDayLong $.tzloc }} {{ now | formatHM $.tzloc }}.
+  </p>
+  <p>
+    The current time in UTC is {{ now.UTC.Format "2006-01-02 Mon 15:04" }}.
+  </p>
+  <form action="/login/settings" method="post">
+    <label>
+      Timezone
+      <input type="text" name="timezone" value="{{ .timezone }}" />
+    </label>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{ end }}
+

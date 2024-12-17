@@ -1,0 +1,23 @@
+{{ template "base.html" $ }}
+{{ define "title" }}
+Samples
+{{ end }}
+{{ define "body" }}
+<ol>
+{{ range .samples }}
+  <li>
+    <a href="/sample/{{ .ID }}">
+      {{ .ID }}
+      from {{ .Start }}
+      ({{ .Duration }})
+      - {{ .Summary }}
+    </a>
+  </li>
+{{ end }}
+</ol>
+<pre>
+{{ toPrettyJson . }}
+</pre>
+{{ end }}
+
+
