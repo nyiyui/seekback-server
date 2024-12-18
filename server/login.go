@@ -110,8 +110,6 @@ func (s *Server) loginCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("session: %s", session.Values)
-
 	_, ok := session.Values["verifier"]
 	if !ok {
 		http.Error(w, "try logging in again", 400)

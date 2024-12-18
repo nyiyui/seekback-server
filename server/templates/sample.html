@@ -20,6 +20,12 @@ Sample {{ .ID }}
 <p>
   Duration: {{ .sample.Duration }}
 </p>
+<video controls width="100%">
+  {{ range .sample.Media }}
+  <source src="/file/{{ . }}" type="{{ filenameToMime . }}">
+  {{ end }}
+  <track kind="captions" src="/file/{{ .sample.ID }}.vtt" default label="Transcript" srclang="en">
+</video>
 <section id="summary">
   {{ .sample.Summary }}
 </section>

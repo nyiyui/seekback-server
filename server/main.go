@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/deiu/rdf2go"
@@ -83,6 +85,7 @@ func (s *Server) setup() error {
 
 	s.mux.Handle("GET /samples", composeFunc(s.samplesView, s.mainLogin))
 	s.mux.Handle("GET /sample/{id}", composeFunc(s.sampleView, s.mainLogin))
+	s.mux.Handle("GET /file/{name}", composeFunc(s.fileServe, s.mainLogin))
 	s.mux.Handle("POST /sample/{id}/transcript", composeFunc(s.sampleTranscriptPost, s.apiAuthz(PermissionWriteTranscript)))
 	//s.mux.Handle("POST /sample/new", composeFunc(s.sampleNew, s.mainLogin))
 	err := s.parseTemplates()
@@ -127,7 +130,7 @@ func (s *Server) sampleView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing id", 400)
 		return
 	}
-	sample, err := s.st.SampleGet(id, r.Context())
+	sample, err := s.st.SampleGet(id)
 	if err != nil {
 		log.Printf("error getting sample: %s", err)
 		http.Error(w, "error getting sample", 500)
@@ -156,4 +159,19 @@ func (s *Server) sampleTranscriptPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "transcript set", 200)
+}
+
+func (s *Server) fileServe(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == "" {
+		http.Error(w, "missing name", 400)
+		return
+	}
+	ext := filepath.Ext(name)
+	if !slices.Contains(storage.AllowedFileTypes, ext[1:]) {
+		http.Error(w, "file type not allowed", 404)
+		return
+	}
+
+	http.ServeFile(w, r, filepath.Join(s.st.SamplesPath, name))
 }

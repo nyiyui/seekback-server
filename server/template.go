@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/Masterminds/sprig/v3"
@@ -18,6 +17,7 @@ import (
 	"github.com/google/safehtml/uncheckedconversions"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"nyiyui.ca/seekback-server/storage"
 )
 
 var buildInfo debug.BuildInfo
@@ -117,19 +117,12 @@ func (s *Server) parseTemplate(basename string) (*template.Template, error) {
 				rel2 := rel.String()
 				return fmt.Sprintf("%s (%s)", abs, rel2[:len(rel2)-2])
 			},
-			"splitNoteTitle": func(s string) string {
-				lines := strings.SplitN(s, "\n", 2)
-				if len(lines) == 1 {
-					return lines[0]
-				}
-				return lines[0]
-			},
-			"splitNoteBody": func(s string) string {
-				lines := strings.SplitN(s, "\n", 2)
-				if len(lines) == 1 {
+			"filenameToMime": func(filename string) string {
+				ext := filepath.Ext(filename)
+				if len(ext) == 0 {
 					return ""
 				}
-				return lines[1]
+				return storage.MediaFileTypes[ext[1:]]
 			},
 			"buildInfo": func() debug.BuildInfo {
 				return buildInfo

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 )
+
+const SummaryExt = ".txt"
+const TranscriptExt = ".vtt"
 
 type Storage struct {
 	SamplesPath string
@@ -24,10 +26,12 @@ func New(samplesPath string, db *sqlx.DB) *Storage {
 }
 
 type SamplePreview struct {
-	ID       string        `db:"id"`
-	Start    time.Time     `db:"start"`
-	Duration time.Duration `db:"duration"`
-	Summary  string        `db:"summary"`
+	ID         string
+	Start      time.Time
+	Duration   time.Duration
+	Summary    string
+	Transcript string
+	Media      []string
 }
 
 func newSamplePreviewFromFilename(filename string) SamplePreview {
@@ -40,9 +44,46 @@ func newSamplePreviewFromFilename(filename string) SamplePreview {
 	return sp
 }
 
-type Sample struct {
-	SamplePreview
-	Transcript string `db:"transcript"`
+func (s *Storage) newSamplePreviewFromID(id string) (SamplePreview, error) {
+	sp := SamplePreview{ID: id}
+	t, err := time.Parse("2006-01-02T15:04:05-07:00", id)
+	if err == nil {
+		sp.Start = t
+	}
+
+	body, err := os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, SummaryExt)))
+	if err != nil && !os.IsNotExist(err) {
+		return sp, err
+	} else if err == nil {
+		sp.Summary = string(body)
+	}
+
+	body, err = os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, TranscriptExt)))
+	if err != nil && !os.IsNotExist(err) {
+		return sp, err
+	} else if err == nil {
+		sp.Transcript = string(body)
+	}
+
+	entries, err := os.ReadDir(s.SamplesPath)
+	if err != nil {
+		return sp, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := filepath.Ext(entry.Name())
+		name := entry.Name()[:len(entry.Name())-len(ext)]
+		if len(ext) == 0 {
+			continue
+		}
+		if _, ok := MediaFileTypes[ext[1:]]; ok && name == id {
+			sp.Media = append(sp.Media, entry.Name())
+		}
+	}
+
+	return sp, nil
 }
 
 func (s *Storage) SamplePreviewList(ctx context.Context) ([]SamplePreview, error) {
@@ -50,52 +91,58 @@ func (s *Storage) SamplePreviewList(ctx context.Context) ([]SamplePreview, error
 	if err != nil {
 		return nil, err
 	}
-	sps := make([]SamplePreview, 0, len(entries))
+	sps := map[string]SamplePreview{}
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		sp := newSamplePreviewFromFilename(entry.Name())
-		err := s.DB.GetContext(ctx, &sp, "SELECT id, start, duration, summary FROM samples WHERE id = ?", sp.ID)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, fmt.Errorf("get: %w", err)
+		ext := filepath.Ext(entry.Name())
+		id := entry.Name()[:len(entry.Name())-len(ext)]
+		if _, ok := sps[id]; ok {
+			continue
 		}
-		sps = append(sps, sp)
+		if len(ext) == 0 {
+			continue
+		}
+		if _, ok := MediaFileTypes[ext[1:]]; !ok {
+			continue
+		}
+		sp, err := s.newSamplePreviewFromID(id)
+		if err != nil {
+			return nil, err
+		}
+		sps[id] = sp
 	}
-	return sps, nil
+	sps2 := make([]SamplePreview, 0, len(sps))
+	for _, sp := range sps {
+		sps2 = append(sps2, sp)
+	}
+	return sps2, nil
 }
 
-func (s *Storage) SampleGet(id string, ctx context.Context) (*Sample, error) {
-	sa := Sample{SamplePreview: newSamplePreviewFromFilename(id)}
-	err := s.DB.GetContext(ctx, &sa, "SELECT id, start, duration, summary, transcript FROM samples WHERE id = ?", id)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("get: %w", err)
-	}
-	return &sa, nil
+func (s *Storage) SampleGet(id string) (SamplePreview, error) {
+	return s.newSamplePreviewFromID(id)
 }
 
 func (s *Storage) SampleTranscriptSet(id string, transcript string, ctx context.Context) error {
-	tx, err := s.DB.Beginx()
+	return os.WriteFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, TranscriptExt)), []byte(transcript), 0644)
+}
+
+func (s *Storage) SampleFiles(id string) ([]string, error) {
+	entries, err := os.ReadDir(s.SamplesPath)
 	if err != nil {
-		return fmt.Errorf("begin: %w", err)
+		return nil, err
 	}
-	defer tx.Rollback()
-	var dummy Sample
-	err = tx.GetContext(ctx, &dummy, "SELECT id FROM samples WHERE id = ?", id)
-	if err != nil && err != sql.ErrNoRows {
-		return fmt.Errorf("get: %w", err)
-	} else if err == sql.ErrNoRows {
-		defaultStart := newSamplePreviewFromFilename(id).Start
-		_, err := tx.ExecContext(ctx, "INSERT INTO samples (id, start, transcript) VALUES (?, ?, ?)", id, defaultStart, transcript)
-		if err != nil {
-			return fmt.Errorf("set default: %w", err)
+	files := make([]string, 0)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
-		return tx.Commit()
-	} else {
-		_, err := tx.ExecContext(ctx, "UPDATE samples SET transcript = ? WHERE id = ?", transcript, id)
-		if err != nil {
-			return fmt.Errorf("update: %w", err)
+		ext := filepath.Ext(entry.Name())
+		name := entry.Name()[:len(entry.Name())-len(ext)]
+		if name == id {
+			files = append(files, entry.Name())
 		}
-		return tx.Commit()
 	}
+	return files, nil
 }
