@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -10,8 +12,8 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-const SummaryExt = ".txt"
-const TranscriptExt = ".vtt"
+const SummaryExt = "txt"
+const TranscriptExt = "vtt"
 
 type Storage struct {
 	SamplesPath string
@@ -51,14 +53,14 @@ func (s *Storage) newSamplePreviewFromID(id string) (SamplePreview, error) {
 		sp.Start = t
 	}
 
-	body, err := os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, SummaryExt)))
+	body, err := os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s.%s", id, SummaryExt)))
 	if err != nil && !os.IsNotExist(err) {
 		return sp, err
 	} else if err == nil {
 		sp.Summary = string(body)
 	}
 
-	body, err = os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, TranscriptExt)))
+	body, err = os.ReadFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s.%s", id, TranscriptExt)))
 	if err != nil && !os.IsNotExist(err) {
 		return sp, err
 	} else if err == nil {
@@ -145,4 +147,57 @@ func (s *Storage) SampleFiles(id string) ([]string, error) {
 		}
 	}
 	return files, nil
+}
+
+func (s *Storage) SyncFiles(ctx context.Context) error {
+	sps, err := s.SamplePreviewList(ctx)
+	if err != nil {
+		return err
+	}
+	log.Printf("syncing %d samples...", len(sps))
+	insertCount := 0
+	updateCount := 0
+	for i, sp := range sps {
+		if i%100 == 0 {
+			log.Printf("syncing %d/%d", i, len(sps))
+		}
+		var dummy SamplePreview
+		err := s.DB.Get(&dummy, "SELECT * FROM samples WHERE id=?", sp.ID)
+		if err != nil && err != sql.ErrNoRows {
+			return fmt.Errorf("select: %w", err)
+		}
+		if err == sql.ErrNoRows {
+			_, err = s.DB.Exec("INSERT INTO samples (id, start, duration, summary, transcript) VALUES (?, ?, ?, ?, ?)", sp.ID, sp.Start, sp.Duration, sp.Summary, sp.Transcript)
+			if err != nil {
+				return fmt.Errorf("insert: %w", err)
+			}
+			insertCount++
+		} else {
+			_, err = s.DB.Exec("UPDATE samples SET start=?, duration=?, summary=?, transcript=? WHERE id=?", sp.Start, sp.Duration, sp.Summary, sp.Transcript, sp.ID)
+			if err != nil {
+				return fmt.Errorf("update: %w", err)
+			}
+			updateCount++
+		}
+	}
+	log.Printf("synced %d samples, %d inserted, %d updated.", len(sps), insertCount, updateCount)
+	_, err = s.DB.Exec("INSERT INTO samples_fts(samples_fts) VALUES ('rebuild')")
+	if err != nil {
+		return fmt.Errorf("fts rebuild: %w", err)
+	}
+	log.Printf("rebuilt fts index.")
+	return nil
+}
+
+func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreview, err error) {
+	sps = make([]SamplePreview, 0)
+	err = s.DB.Select(&sps, `
+SELECT * FROM samples JOIN (
+  SELECT id FROM samples_fts WHERE samples_fts MATCH ?
+) USING (id)
+`, query)
+	if err != nil {
+		return nil, err
+	}
+	return sps, nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
@@ -41,19 +43,24 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("migrating database...")
-	database.Migrate(db.DB)
-	if err != nil {
+	err = database.Migrate(db.DB)
+	if err != nil && err != migrate.ErrNoChange {
 		log.Fatal(err)
 	}
 	log.Printf("database ready.")
+
+	st := storage.New(getenvNonEmpty("SEEKBACK_SERVER_SAMPLES_PATH"), db)
+	log.Printf("syncing files and database...")
+	err = st.SyncFiles(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	authKey, err := hex.DecodeString(getenvNonEmpty("SEEKBACK_SERVER_STORE_AUTH_KEY"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	store := sessions.NewFilesystemStore("", authKey)
-
-	st := storage.New(getenvNonEmpty("SEEKBACK_SERVER_SAMPLES_PATH"), db)
 
 	data, err := os.ReadFile(tokensPath)
 	if err != nil {

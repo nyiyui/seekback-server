@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/deiu/rdf2go"
@@ -44,7 +45,7 @@ func newDecoder(r *http.Request) *schema.Decoder {
 		loc := getTimeLocation(r)
 		t, err := time.ParseInLocation("2006-01-02T15:04", s, loc)
 		if err != nil {
-			return reflect.ValueOf(time.Now())
+			return reflect.ValueOf(time.Time{})
 		}
 		return reflect.ValueOf(t)
 	})
@@ -112,15 +113,62 @@ func (s *Server) getRDF(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+type samplesViewQuery struct {
+	TimeStart *time.Time `schema:"time_start"`
+	TimeEnd   *time.Time `schema:"time_end"`
+	Query     string     `schema:"query"`
+}
+
 func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
-	sps, err := s.st.SamplePreviewList(r.Context())
+	decoder := newDecoder(r)
+	var query samplesViewQuery
+	err := decoder.Decode(&query, r.URL.Query())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("query data decode failed: %s", err), 422)
+		return
+	}
+
+	if query.TimeStart != nil && *query.TimeStart == (time.Time{}) {
+		query.TimeStart = nil
+	}
+	if query.TimeEnd != nil && *query.TimeEnd == (time.Time{}) {
+		query.TimeEnd = nil
+	}
+
+	var sps []storage.SamplePreview
+	if query.Query != "" {
+		sps, err = s.st.Search(query.Query, r.Context())
+	} else {
+		sps, err = s.st.SamplePreviewList(r.Context())
+	}
 	if err != nil {
 		log.Printf("error getting sample list: %s", err)
 		http.Error(w, "error getting sample list", 500)
 		return
 	}
+
+	log.Printf("query: %+v", query)
+	sps2 := make([]storage.SamplePreview, 0)
+	for _, sp := range sps {
+		if (query.TimeStart == nil || sp.Start.After(*query.TimeStart)) && (query.TimeEnd == nil || sp.Start.Before(*query.TimeEnd)) {
+			sps2 = append(sps2, sp)
+		}
+	}
+	sort.Slice(sps2, func(i, j int) bool {
+		return sps2[i].Start.After(sps2[j].Start)
+	})
+
+	allSamplesHaveTranscripts := true
+	for _, sp := range sps2 {
+		if sp.Transcript == "" {
+			allSamplesHaveTranscripts = false
+			break
+		}
+	}
 	s.renderTemplate("samples.html", w, r, map[string]interface{}{
-		"samples": sps,
+		"query":                     query,
+		"samples":                   sps2,
+		"allSamplesHaveTranscripts": allSamplesHaveTranscripts,
 	})
 }
 

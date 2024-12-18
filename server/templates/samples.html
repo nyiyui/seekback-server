@@ -3,6 +3,24 @@
 Samples
 {{ end }}
 {{ define "body" }}
+<form>
+  <label>
+    After
+    <input type="datetime-local" name="time_start" value="{{ if .query.TimeStart }}{{ .query.TimeStart | formatDatetimeLocalHTML $.tzloc }}{{ end }}" />
+  </label>
+  <label>
+    Before
+    <input type="datetime-local" name="time_end" value="{{ if .query.TimeEnd }}{{ .query.TimeEnd | formatDatetimeLocalHTML $.tzloc }}{{ end }}" />
+  </label>
+  <label>
+    Full Text Search
+    {{ if not .allSamplesHaveTranscripts }}
+    (not all samples have transcripts)
+    {{ end }}
+    <input type="text" name="query" value="{{ .query.Query }}" />
+  </label>
+  <input type="submit" value="Filter" />
+</form>
 <ol>
 {{ range .samples }}
   <li>
@@ -11,13 +29,13 @@ Samples
       from {{ .Start }}
       ({{ .Duration }})
       - {{ .Summary }}
+      {{ if ne .Transcript "" }}
+      (has transcript)
+      {{ end }}
     </a>
   </li>
 {{ end }}
 </ol>
-<pre>
-{{ toPrettyJson . }}
-</pre>
 {{ end }}
 
 
