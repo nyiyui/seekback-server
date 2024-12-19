@@ -135,31 +135,33 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 		query.TimeEnd = nil
 	}
 
-	var sps []storage.SamplePreview
+	var sps []storage.SamplePreviewWithSnippet
 	if query.Query != "" {
-		sps, err = s.st.Search(query.Query, r.Context())
+		tmp, err := s.st.Search(query.Query, r.Context())
+		if err != nil {
+			log.Printf("error getting sample list: %s", err)
+			http.Error(w, "error getting sample list", 500)
+			return
+		}
+		sps = filterSamplePreviews(tmp, query.TimeStart, query.TimeEnd)
 	} else {
-		sps, err = s.st.SamplePreviewList(r.Context())
-	}
-	if err != nil {
-		log.Printf("error getting sample list: %s", err)
-		http.Error(w, "error getting sample list", 500)
-		return
-	}
-
-	log.Printf("query: %+v", query)
-	sps2 := make([]storage.SamplePreview, 0)
-	for _, sp := range sps {
-		if (query.TimeStart == nil || sp.Start.After(*query.TimeStart)) && (query.TimeEnd == nil || sp.Start.Before(*query.TimeEnd)) {
-			sps2 = append(sps2, sp)
+		tmp, err := s.st.SamplePreviewList(r.Context())
+		if err != nil {
+			log.Printf("error getting sample list: %s", err)
+			http.Error(w, "error getting sample list", 500)
+			return
+		}
+		for _, sp := range tmp {
+			sps = append(sps, storage.SamplePreviewWithSnippet{SamplePreview: sp})
 		}
 	}
-	sort.Slice(sps2, func(i, j int) bool {
-		return sps2[i].Start.After(sps2[j].Start)
+
+	sort.Slice(sps, func(i, j int) bool {
+		return sps[i].Start.After(sps[j].Start)
 	})
 
 	allSamplesHaveTranscripts := true
-	for _, sp := range sps2 {
+	for _, sp := range sps {
 		if sp.Transcript == "" {
 			allSamplesHaveTranscripts = false
 			break
@@ -167,7 +169,7 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 	}
 	s.renderTemplate("samples.html", w, r, map[string]interface{}{
 		"query":                     query,
-		"samples":                   sps2,
+		"samples":                   sps,
 		"allSamplesHaveTranscripts": allSamplesHaveTranscripts,
 	})
 }
@@ -222,4 +224,15 @@ func (s *Server) fileServe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFile(w, r, filepath.Join(s.st.SamplesPath, name))
+}
+
+func filterSamplePreviews[T storage.HasSamplePreview](vs []T, timeStart, timeEnd *time.Time) []T {
+	sps2 := make([]T, 0)
+	for _, v := range vs {
+		sp := v.SamplePreview_()
+		if (timeStart == nil || sp.Start.After(*timeStart)) && (timeEnd == nil || sp.Start.Before(*timeEnd)) {
+			sps2 = append(sps2, v)
+		}
+	}
+	return sps2
 }

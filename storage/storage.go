@@ -27,6 +27,10 @@ func New(samplesPath string, db *sqlx.DB) *Storage {
 	}
 }
 
+type HasSamplePreview interface {
+	SamplePreview_() SamplePreview
+}
+
 type SamplePreview struct {
 	ID         string
 	Start      time.Time
@@ -34,6 +38,19 @@ type SamplePreview struct {
 	Summary    string
 	Transcript string
 	Media      []string
+}
+
+func (sp SamplePreview) SamplePreview_() SamplePreview {
+	return sp
+}
+
+type SamplePreviewWithSnippet struct {
+	SamplePreview
+	Snippet string `db:"snippet"`
+}
+
+func (spws SamplePreviewWithSnippet) SamplePreview_() SamplePreview {
+	return spws.SamplePreview
 }
 
 func newSamplePreviewFromFilename(filename string) SamplePreview {
@@ -189,11 +206,11 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 	return nil
 }
 
-func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreview, err error) {
-	sps = make([]SamplePreview, 0)
+func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
+	sps = make([]SamplePreviewWithSnippet, 0)
 	err = s.DB.Select(&sps, `
 SELECT * FROM samples JOIN (
-  SELECT id FROM samples_fts WHERE samples_fts MATCH ?
+  SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ?
 ) USING (id)
 `, query)
 	if err != nil {

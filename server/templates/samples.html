@@ -21,6 +21,7 @@ Samples
   </label>
   <input type="submit" value="Filter" />
 </form>
+<h2>Samples</h2>
 <ol>
 {{ range .samples }}
   <li>
@@ -33,6 +34,9 @@ Samples
       (has transcript)
       {{ end }}
     </a>
+    {{ if ne .Snippet "" }}
+    {{ .Snippet | renderMarkdown }}
+    {{ end }}
   </li>
 {{ end }}
 </ol>
