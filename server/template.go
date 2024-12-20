@@ -21,6 +21,7 @@ import (
 )
 
 var buildInfo debug.BuildInfo
+var vcsInfo string
 
 //go:embed layouts
 var layoutsFS embed.FS
@@ -126,6 +127,9 @@ func (s *Server) parseTemplate(basename string) (*template.Template, error) {
 			},
 			"buildInfo": func() debug.BuildInfo {
 				return buildInfo
+			},
+			"vcsInfo": func() string {
+				return vcsInfo
 			},
 		})
 	t, err := t.ParseFS(template.TrustedFSFromEmbed(layoutsFS), "layouts/*.html")

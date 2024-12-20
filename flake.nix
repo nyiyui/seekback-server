@@ -24,8 +24,10 @@
             pname = "seekback-server";
             version = if (self ? rev) then self.rev else "dirty";
             src = ./.;
-            vendorHash = "sha256-LFK6qrNw4NUBPcGCbgvFeH0QGSKoS054y+OcxMm+w6M=";
+            vendorHash = "sha256-LOlkBswmqnfAHLxA0x0fwduT5tYz32OZKuBGNoHhxb0=";
             subPackages = [ "cmd/server" ];
+            tags = [ "fts5" ];
+            ldflags = [ "-X nyiyui.ca/seekback-server/server.vcsInfo=${version}" ];
           });
       in
       {

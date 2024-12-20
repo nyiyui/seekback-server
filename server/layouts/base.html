@@ -58,6 +58,7 @@
       {{ template "body" $ }}
     </main>
     <footer>
+      {{ vcsInfo }}
       Built using {{ buildInfo.GoVersion }}
     </footer>
   </body>
