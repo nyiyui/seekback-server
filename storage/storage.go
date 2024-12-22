@@ -143,8 +143,11 @@ func (s *Storage) SamplePreviewList(ctx context.Context) ([]SamplePreview, error
 }
 
 func (s *Storage) SampleGet(id string) (SamplePreview, error) {
-	var sp SamplePreview
-	err := s.DB.Get(&sp, "SELECT * FROM samples WHERE id=?", id)
+	sp, err := s.newSamplePreviewFromID(id)
+	if err != nil {
+		return SamplePreview{}, err
+	}
+	err = s.DB.Get(&sp, "SELECT * FROM samples WHERE id=?", id)
 	if err != nil {
 		return SamplePreview{}, err
 	}
