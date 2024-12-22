@@ -137,24 +137,16 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 
 	var sps []storage.SamplePreviewWithSnippet
 	if query.Query != "" {
-		tmp, err := s.st.Search(query.Query, r.Context())
-		if err != nil {
-			log.Printf("error getting sample list: %s", err)
-			http.Error(w, "error getting sample list", 500)
-			return
-		}
-		sps = filterSamplePreviews(tmp, query.TimeStart, query.TimeEnd)
+		sps, err = s.st.Search(query.Query, r.Context())
 	} else {
-		tmp, err := s.st.SamplePreviewList(r.Context())
-		if err != nil {
-			log.Printf("error getting sample list: %s", err)
-			http.Error(w, "error getting sample list", 500)
-			return
-		}
-		for _, sp := range tmp {
-			sps = append(sps, storage.SamplePreviewWithSnippet{SamplePreview: sp})
-		}
+		sps, err = s.st.All(r.Context())
 	}
+	if err != nil {
+		log.Printf("error getting sample list: %s", err)
+		http.Error(w, "error getting sample list", 500)
+		return
+	}
+	sps = filterSamplePreviews(sps, query.TimeStart, query.TimeEnd)
 
 	sort.Slice(sps, func(i, j int) bool {
 		return sps[i].Start.After(sps[j].Start)

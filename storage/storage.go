@@ -171,6 +171,7 @@ func (s *Storage) SampleFiles(id string) ([]string, error) {
 
 // SyncFiles syncs the SQL database with files in the samples directory.
 func (s *Storage) SyncFiles(ctx context.Context) error {
+	log.Print("reading samples directory...")
 	sps, err := s.SamplePreviewList(ctx)
 	if err != nil {
 		return err
@@ -178,14 +179,17 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 	log.Printf("syncing %d samples...", len(sps))
 	insertCount := 0
 	updateCount := 0
+	durationCount := 0
 	fsIDs := make([]string, 0, len(sps))
+	start := time.Now()
 	for i, sp := range sps {
-		if i%100 == 0 {
-			log.Printf("syncing %d/%d", i, len(sps))
+		if time.Since(start) > 5*time.Second {
+			log.Printf("syncing %d/%d (%d inserted, %d updated, %d duration)", i, len(sps), insertCount, updateCount, durationCount)
+			start = time.Now()
 		}
 		fsIDs = append(fsIDs, sp.ID)
-		var dummy SamplePreview
-		err := s.DB.Get(&dummy, "SELECT * FROM samples WHERE id=?", sp.ID)
+		var oldSP SamplePreview
+		err := s.DB.Get(&oldSP, "SELECT * FROM samples WHERE id=?", sp.ID)
 		if err != nil && err != sql.ErrNoRows {
 			return fmt.Errorf("select: %w", err)
 		}
@@ -196,6 +200,17 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 			}
 			insertCount++
 		} else {
+			if oldSP.Duration == 0 && len(sp.Media) != 0 {
+				durationCount++
+				duration, err := getMediaDuration(filepath.Join(s.SamplesPath, sp.Media[0]))
+				if err != nil {
+					log.Printf("get media duration of %s failed: %s", sp.Media[0], err)
+				} else {
+					sp.Duration = duration
+				}
+			} else if oldSP.Duration != 0 {
+				sp.Duration = oldSP.Duration
+			}
 			_, err = s.DB.Exec("UPDATE samples SET start=?, duration=?, summary=?, transcript=? WHERE id=?", sp.Start, sp.Duration, sp.Summary, sp.Transcript, sp.ID)
 			if err != nil {
 				return fmt.Errorf("update: %w", err)
@@ -217,7 +232,7 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 		}
 	}
 
-	log.Printf("synced %d samples, %d inserted, %d updated, %d deleted.", len(sps), insertCount, updateCount, deleteCount)
+	log.Printf("synced %d samples, %d inserted, %d updated, %d deleted (%d new media duration).", len(sps), insertCount, updateCount, deleteCount, durationCount)
 	_, err = s.DB.Exec("INSERT INTO samples_fts(samples_fts) VALUES ('rebuild')")
 	if err != nil {
 		return fmt.Errorf("fts rebuild: %w", err)
@@ -256,6 +271,15 @@ SELECT * FROM samples JOIN (
   SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ?
 ) USING (id)
 `, query)
+	if err != nil {
+		return nil, err
+	}
+	return sps, nil
+}
+
+func (s *Storage) All(ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
+	sps = make([]SamplePreviewWithSnippet, 0)
+	err = s.DB.Select(&sps, `SELECT * FROM samples`)
 	if err != nil {
 		return nil, err
 	}
