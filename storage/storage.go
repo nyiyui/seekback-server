@@ -190,11 +190,16 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 	durationCount := 0
 	fsIDs := make([]string, 0, len(sps))
 	start := time.Now()
+	lastLog := start
 	for i, sp := range sps {
-		if time.Since(start) > 5*time.Second {
-			log.Printf("syncing %d/%d (%d inserted, %d updated, %d duration)", i, len(sps), insertCount, updateCount, durationCount)
-			start = time.Now()
+		if time.Since(lastLog) > 5*time.Second {
+			perSP := time.Since(start) / time.Duration(i+1)
+			eta := perSP * time.Duration(len(sps))
+			eta = eta.Round(time.Second)
+			log.Printf("syncing %d/%d ; eta %s (%d inserted, %d updated, %d duration)", i, len(sps), eta, insertCount, updateCount, durationCount)
+			lastLog = time.Now()
 		}
+
 		fsIDs = append(fsIDs, sp.ID)
 		var oldSP SamplePreview
 		err := s.DB.Get(&oldSP, "SELECT * FROM samples WHERE id=?", sp.ID)
@@ -202,6 +207,13 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 			return fmt.Errorf("select: %w", err)
 		}
 		if err == sql.ErrNoRows {
+			durationCount++
+			duration, err := getMediaDuration(filepath.Join(s.SamplesPath, sp.Media[0]))
+			if err != nil {
+				log.Printf("get media duration of %s failed: %s", sp.Media[0], err)
+			} else {
+				sp.Duration = duration
+			}
 			_, err = s.DB.Exec("INSERT INTO samples (id, start, duration, summary, transcript) VALUES (?, ?, ?, ?, ?)", sp.ID, sp.Start, sp.Duration, sp.Summary, sp.Transcript)
 			if err != nil {
 				return fmt.Errorf("insert: %w", err)
