@@ -3,3 +3,4 @@ tokens.json
 .envrc
 db.sqlite3
 result
+main
