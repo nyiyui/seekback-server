@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"math"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -39,5 +40,5 @@ func getMediaDuration(path string) (time.Duration, error) {
 	if err != nil {
 		return 0, err
 	}
-	return time.Duration(seconds) * time.Second, nil
+	return time.Duration(math.Round(seconds)) * time.Second, nil
 }
