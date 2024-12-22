@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -105,6 +106,8 @@ func (s *Storage) newSamplePreviewFromID(id string) (SamplePreview, error) {
 	return sp, nil
 }
 
+// SamplePreviewList returns a list of SamplePreview structs from the samples directory.
+// This method does not access the SQL database.
 func (s *Storage) SamplePreviewList(ctx context.Context) ([]SamplePreview, error) {
 	entries, err := os.ReadDir(s.SamplesPath)
 	if err != nil {
@@ -166,6 +169,7 @@ func (s *Storage) SampleFiles(id string) ([]string, error) {
 	return files, nil
 }
 
+// SyncFiles syncs the SQL database with files in the samples directory.
 func (s *Storage) SyncFiles(ctx context.Context) error {
 	sps, err := s.SamplePreviewList(ctx)
 	if err != nil {
@@ -174,10 +178,12 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 	log.Printf("syncing %d samples...", len(sps))
 	insertCount := 0
 	updateCount := 0
+	fsIDs := make([]string, 0, len(sps))
 	for i, sp := range sps {
 		if i%100 == 0 {
 			log.Printf("syncing %d/%d", i, len(sps))
 		}
+		fsIDs = append(fsIDs, sp.ID)
 		var dummy SamplePreview
 		err := s.DB.Get(&dummy, "SELECT * FROM samples WHERE id=?", sp.ID)
 		if err != nil && err != sql.ErrNoRows {
@@ -197,13 +203,50 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 			updateCount++
 		}
 	}
-	log.Printf("synced %d samples, %d inserted, %d updated.", len(sps), insertCount, updateCount)
+	dbIDs := make([]string, 0, len(sps))
+	err = s.DB.Select(&dbIDs, "SELECT id FROM samples")
+	if err != nil {
+		return fmt.Errorf("select: %w", err)
+	}
+	notInFS := setMinus(dbIDs, fsIDs)
+	deleteCount := len(notInFS)
+	for _, id := range notInFS {
+		_, err = s.DB.Exec("DELETE FROM samples WHERE id=?", id)
+		if err != nil {
+			return fmt.Errorf("delete: %w", err)
+		}
+	}
+
+	log.Printf("synced %d samples, %d inserted, %d updated, %d deleted.", len(sps), insertCount, updateCount, deleteCount)
 	_, err = s.DB.Exec("INSERT INTO samples_fts(samples_fts) VALUES ('rebuild')")
 	if err != nil {
 		return fmt.Errorf("fts rebuild: %w", err)
 	}
 	log.Printf("rebuilt fts index.")
 	return nil
+}
+
+// Returns a set minus b.
+func setMinus(a, b []string) []string {
+	slices.Sort(a)
+	slices.Sort(b)
+	result := make([]string, 0)
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if a[i] == b[j] {
+			i++
+			j++
+		} else if a[i] > b[j] {
+			j++
+		} else {
+			result = append(result, a[i])
+			i++
+		}
+	}
+	for ; i < len(a); i++ {
+		result = append(result, a[i])
+	}
+	return result
 }
 
 func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
