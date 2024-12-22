@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"math"
 	"net/http"
 	"path/filepath"
 	"runtime/debug"
@@ -117,6 +118,24 @@ func (s *Server) parseTemplate(basename string) (*template.Template, error) {
 				rel := t.Sub(time.Now()).Round(time.Minute)
 				rel2 := rel.String()
 				return fmt.Sprintf("%s (%s)", abs, rel2[:len(rel2)-2])
+			},
+			"formatUserOrig": func(t time.Time) string {
+				abs := t.Format("2006-01-02 15:04")
+				rel := t.Sub(time.Now()).Round(time.Minute)
+				rel2 := rel.String()
+				return fmt.Sprintf("%s (%s)", abs, rel2[:len(rel2)-2])
+			},
+			"printTZ": func(t time.Time) string {
+				name, offsetRaw := t.Zone()
+				offset := time.Duration(offsetRaw) * time.Second
+				offsetString := fmt.Sprintf("%02d:%02d", int(math.Abs(offset.Hours())), int(math.Abs(offset.Minutes()))%60)
+				if offset.Hours() < 0 {
+					offsetString = "-" + offsetString
+				}
+				if name == "" {
+					return offsetString
+				}
+				return fmt.Sprintf("%s / %s", name, offset)
 			},
 			"filenameToMime": func(filename string) string {
 				ext := filepath.Ext(filename)
