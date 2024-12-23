@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -83,6 +84,7 @@ func (s *Server) setup() error {
 	s.mux.Handle("POST /login/settings", composeFunc(s.loginSettings, s.mainLogin))
 
 	s.mux.Handle("GET /rdf/all", composeFunc(s.getRDF, s.mainLogin))
+	s.mux.Handle("GET /events", composeFunc(s.getEvents, s.mainLogin))
 
 	s.mux.Handle("GET /samples", composeFunc(s.samplesView, s.mainLogin))
 	s.mux.Handle("GET /sample/{id}", composeFunc(s.sampleView, s.mainLogin))
@@ -111,6 +113,52 @@ func (s *Server) getRDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	return
+}
+
+type eventsQuery struct {
+	TimeStart time.Time `schema:"time_start"`
+	TimeEnd   time.Time `schema:"time_end"`
+}
+
+type Event struct {
+	ID      string `json:"id"`
+	Summary string `json:"summary"`
+}
+
+func (s *Server) getEvents(w http.ResponseWriter, r *http.Request) {
+	decoder := newDecoder(r)
+	var query eventsQuery
+	err := decoder.Decode(&query, r.URL.Query())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("query data decode failed: %s", err), 422)
+		return
+	}
+
+	var sps []storage.SamplePreviewWithSnippet
+	sps, err = s.st.All(r.Context())
+	if err != nil {
+		log.Printf("error getting sample list: %s", err)
+		http.Error(w, "error getting sample list", 500)
+		return
+	}
+	sps = filterSamplePreviews(sps, &query.TimeStart, &query.TimeEnd)
+
+	sort.Slice(sps, func(i, j int) bool {
+		return sps[i].Start.After(sps[j].Start)
+	})
+
+	events := make([]Event, len(sps))
+	for i, sp := range sps {
+		events[i] = Event{sp.ID, fmt.Sprintf("%s from %s", sp.Duration, sp.Start)}
+	}
+
+	enc := json.NewEncoder(w)
+	err = enc.Encode(events)
+	if err != nil {
+		log.Printf("error encoding events: %s", err)
+		http.Error(w, "error encoding events", 500)
+		return
+	}
 }
 
 type samplesViewQuery struct {
