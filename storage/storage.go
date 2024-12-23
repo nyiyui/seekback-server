@@ -194,9 +194,9 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 	for i, sp := range sps {
 		if time.Since(lastLog) > 5*time.Second {
 			perSP := time.Since(start) / time.Duration(i+1)
-			eta := perSP * time.Duration(len(sps))
-			eta = eta.Round(time.Second)
-			log.Printf("syncing %d/%d ; eta %s (%d inserted, %d updated, %d duration)", i, len(sps), eta, insertCount, updateCount, durationCount)
+			total := (perSP * time.Duration(len(sps)))
+			eta := start.Add(total)
+			log.Printf("syncing %d/%d ; %s to eta (%d inserted, %d updated, %d duration)", i, len(sps), time.Until(eta).Round(time.Second), insertCount, updateCount, durationCount)
 			lastLog = time.Now()
 		}
 
