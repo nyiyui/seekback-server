@@ -158,6 +158,11 @@ func (s *Storage) SampleTranscriptSet(id string, transcript string, ctx context.
 	return os.WriteFile(filepath.Join(s.SamplesPath, fmt.Sprintf("%s%s", id, TranscriptExt)), []byte(transcript), 0644)
 }
 
+func (s *Storage) SampleSummarySet(id string, transcript string, ctx context.Context) error {
+	_, err := s.DB.ExecContext(ctx, "UPDATE samples SET summary=? WHERE id=?", transcript, id)
+	return err
+}
+
 func (s *Storage) SampleFiles(id string) ([]string, error) {
 	entries, err := os.ReadDir(s.SamplesPath)
 	if err != nil {
@@ -231,7 +236,8 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 			} else if oldSP.Duration != 0 {
 				sp.Duration = oldSP.Duration
 			}
-			_, err = s.DB.Exec("UPDATE samples SET start=?, duration=?, summary=?, transcript=? WHERE id=?", sp.Start, sp.Duration, sp.Summary, sp.Transcript, sp.ID)
+			// Summary is not given from samples directory, so ignore.
+			_, err = s.DB.Exec("UPDATE samples SET start=?, duration=?,  transcript=? WHERE id=?", sp.Start, sp.Duration, sp.Transcript, sp.ID)
 			if err != nil {
 				return fmt.Errorf("update: %w", err)
 			}
@@ -288,7 +294,7 @@ func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreview
 	sps = make([]SamplePreviewWithSnippet, 0)
 	err = s.DB.Select(&sps, `
 SELECT * FROM samples JOIN (
-  SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ?
+  SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ? ORDER BY rank
 ) USING (id)
 `, query)
 	if err != nil {

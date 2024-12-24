@@ -90,6 +90,7 @@ func (s *Server) setup() error {
 	s.mux.Handle("GET /sample/{id}", composeFunc(s.sampleView, s.mainLogin))
 	s.mux.Handle("GET /file/{name}", composeFunc(s.fileServe, s.mainLogin))
 	s.mux.Handle("POST /sample/{id}/transcript", composeFunc(s.sampleTranscriptPost, s.apiAuthz(PermissionWriteTranscript)))
+	s.mux.Handle("POST /sample/{id}/summary", composeFunc(s.sampleSummaryPost, s.mainLogin))
 	//s.mux.Handle("POST /sample/new", composeFunc(s.sampleNew, s.mainLogin))
 	err := s.parseTemplates()
 	return err
@@ -191,7 +192,7 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		log.Printf("error getting sample list: %s", err)
-		http.Error(w, "error getting sample list", 500)
+		http.Error(w, fmt.Sprintf("error getting sample list: %s", err), 500)
 		return
 	}
 	sps = filterSamplePreviews(sps, query.TimeStart, query.TimeEnd)
@@ -249,6 +250,40 @@ func (s *Server) sampleTranscriptPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Error(w, "transcript set", 200)
+}
+
+type sampleSummaryPostQuery struct {
+	Summary string `schema:"summary"`
+}
+
+func (s *Server) sampleSummaryPost(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "missing id", 400)
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("form parse failed: %s", err), 422)
+		return
+	}
+
+	decoder := newDecoder(r)
+	var query sampleSummaryPostQuery
+	err = decoder.Decode(&query, r.PostForm)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("query data decode failed: %s", err), 422)
+		return
+	}
+
+	err = s.st.SampleSummarySet(id, query.Summary, r.Context())
+	if err != nil {
+		log.Printf("error setting transcript: %s", err)
+		http.Error(w, "error setting transcript", 500)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/sample/%s", id), 302)
 }
 
 func (s *Server) fileServe(w http.ResponseWriter, r *http.Request) {

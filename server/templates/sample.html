@@ -52,12 +52,24 @@ Sample {{ .ID }}
     <track kind="captions" src="/file/{{ .sample.ID }}.vtt" default label="Transcript" srclang="en">
   </video>
 </section>
-{{ if .sample.Summary }}
 <section id="summary">
+  {{ if .sample.Summary }}
   <h2>Summary</h2>
   {{ .sample.Summary }}
+  {{ else }}
+  <h2>Add Summary</h2>
+  {{ end }}
+  <form action="/sample/{{ .sample.ID }}/summary" method="post">
+    <textarea name="summary" required value="{{ .sample.Summary }}"></textarea>
+    <button type="submit">
+      {{ if .sample.Summary }}
+      Update Summary
+      {{ else }}
+      Add Summary
+      {{ end }}
+    </button>
+  </form>
 </section>
-{{ end }}
 {{ if .sample.Transcript }}
 <section id="transcript">
   <h2>Transcript</h2>
