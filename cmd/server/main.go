@@ -37,31 +37,6 @@ func main() {
 	flag.StringVar(&tokensPath, "tokens-path", "", "path to tokens")
 	flag.Parse()
 
-	log.Printf("opening database...")
-	db, err := database.Open(dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("migrating database...")
-	err = database.Migrate(db.DB)
-	if err != nil && err != migrate.ErrNoChange {
-		log.Fatal(err)
-	}
-	log.Printf("database ready.")
-
-	st := storage.New(getenvNonEmpty("SEEKBACK_SERVER_SAMPLES_PATH"), db)
-	log.Printf("syncing files and database...")
-	err = st.SyncFiles(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	authKey, err := hex.DecodeString(getenvNonEmpty("SEEKBACK_SERVER_STORE_AUTH_KEY"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	store := sessions.NewFilesystemStore("", authKey)
-
 	data, err := os.ReadFile(tokensPath)
 	if err != nil {
 		log.Fatal(err)
@@ -76,6 +51,32 @@ func main() {
 		tokenMap2[tokens.MustParseTokenHash(k)] = v
 	}
 
+	log.Printf("opening database...")
+	db, err := database.Open(dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("migrating database...")
+	err = database.Migrate(db.DB)
+	if err != nil && err != migrate.ErrNoChange {
+		log.Fatal(err)
+	}
+	log.Printf("database migrated.")
+
+	st := storage.New(getenvNonEmpty("SEEKBACK_SERVER_SAMPLES_PATH"), db)
+	log.Printf("syncing files and database...")
+	err = st.SyncFiles(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("files and database synced.")
+
+	authKey, err := hex.DecodeString(getenvNonEmpty("SEEKBACK_SERVER_STORE_AUTH_KEY"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	store := sessions.NewFilesystemStore("", authKey)
+
 	s, err := server.New(&oauth2.Config{
 		ClientID:     getenvNonEmpty("SEEKBACK_SERVER_OAUTH_CLIENT_ID"),
 		ClientSecret: getenvNonEmpty("SEEKBACK_SERVER_OAUTH_CLIENT_SECRET"),
@@ -86,5 +87,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("listening on %s...", bindAddress)
 	log.Fatal(http.ListenAndServe(bindAddress, s))
 }
