@@ -36,6 +36,7 @@ type SamplePreview struct {
 	ID         string
 	Start      time.Time
 	Duration   time.Duration
+	End        *time.Time
 	Summary    string
 	Transcript string
 	Media      []string
@@ -182,6 +183,23 @@ func (s *Storage) SampleFiles(id string) ([]string, error) {
 	return files, nil
 }
 
+func (s *Storage) setEnds(ctx context.Context) error {
+	log.Printf("setting end times...")
+	sps := make([]SamplePreview, 0)
+	err := s.DB.Select(&sps, "SELECT id, start, duration FROM samples WHERE end IS NULL")
+	if err != nil {
+		return fmt.Errorf("select: %w", err)
+	}
+	for _, sp := range sps {
+		_, err = s.DB.Exec("UPDATE samples SET end=? WHERE id=?", sp.Start.Add(sp.Duration), sp.ID)
+		if err != nil {
+			return fmt.Errorf("update: %w", err)
+		}
+	}
+	log.Printf("set end times for %d samples.", len(sps))
+	return nil
+}
+
 // SyncFiles syncs the SQL database with files in the samples directory.
 func (s *Storage) SyncFiles(ctx context.Context) error {
 	log.Print("reading samples directory...")
@@ -264,6 +282,10 @@ func (s *Storage) SyncFiles(ctx context.Context) error {
 		return fmt.Errorf("fts rebuild: %w", err)
 	}
 	log.Printf("rebuilt fts index.")
+	err = s.setEnds(ctx)
+	if err != nil {
+		return fmt.Errorf("set ends: %w", err)
+	}
 	return nil
 }
 
