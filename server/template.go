@@ -114,7 +114,7 @@ func (s *Server) parseTemplate(basename string) (*template.Template, error) {
 			},
 			"formatUser": func(loc *time.Location, t time.Time) string {
 				t = t.In(loc)
-				abs := t.Format("2006-01-02 15:04")
+				abs := t.Format("2006-01-02 15:04:05")
 				rel := t.Sub(time.Now()).Round(time.Minute)
 				rel2 := rel.String()
 				return fmt.Sprintf("%s (%s)", abs, rel2[:len(rel2)-2])
@@ -143,6 +143,9 @@ func (s *Server) parseTemplate(basename string) (*template.Template, error) {
 			},
 			"vcsInfo": func() string {
 				return vcsInfo
+			},
+			"percent": func(f float64) string {
+				return fmt.Sprintf("%.f%%", f*100)
 			},
 		})
 	t, err := t.ParseFS(template.TrustedFSFromEmbed(layoutsFS), "layouts/*.html")

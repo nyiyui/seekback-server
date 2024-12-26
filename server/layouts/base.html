@@ -1,3 +1,13 @@
+{{ define "sample" }}
+<a href="/sample/{{ .sample.ID }}">
+  from {{ .sample.Start | formatUser $.tzloc }}
+  ({{ .sample.Duration }})
+  - {{ .sample.Summary }}
+  {{ if ne .sample.Transcript "" }}
+  (has transcript)
+  {{ end }}
+</a>
+{{ end }}
 <!DOCTYPE html>
 <html>
   <head>

@@ -227,8 +227,17 @@ func (s *Server) sampleView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error getting sample", 500)
 		return
 	}
+	so := storage.SearchOptions{}
+	so.SetOverlap(sample.Start, *sample.End)
+	overlaps, err := s.st.Search2(so, r.Context())
+	if err != nil {
+		log.Printf("error getting overlaps: %s", err)
+		http.Error(w, "error getting overlaps", 500)
+		return
+	}
 	s.renderTemplate("sample.html", w, r, map[string]interface{}{
-		"sample": sample,
+		"sample":   sample,
+		"overlaps": overlaps,
 	})
 }
 

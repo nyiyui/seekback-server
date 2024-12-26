@@ -1,4 +1,11 @@
 {{ template "base.html" $ }}
+{{ define "overlap" }}
+{{ .duration }}
+{{ if and (ne .overlap.Duration 0) (ne .original.Duration 0) }}
+({{ divf .duration.Seconds .overlap.Duration.Seconds | percent }} /
+{{ divf .duration.Seconds .original.Duration.Seconds | percent }})
+{{ end }}
+{{ end }}
 {{ define "title" }}
 Sample {{ .ID }}
 {{ end }}
@@ -74,6 +81,31 @@ Sample {{ .ID }}
 <section id="transcript">
   <h2>Transcript</h2>
   <textarea readonly>{{ .sample.Transcript }}</textarea>
+</section>
+{{ end }}
+{{ if .overlaps }}
+<section id="overlaps">
+  <h2>Overlaps</h2>
+  <ul>
+    {{ range .overlaps }}
+    {{ if ne .ID $.sample.ID }}
+    <li>
+      {{ template "sample" (dict "sample" . "tzloc" $.tzloc) }}
+      with {{ if and (.Start.Before $.sample.Start) (.End.Before $.sample.End) }}
+      {{ template "overlap" (dict "original" $.sample "overlap" . "duration" ($.sample.End.Sub .End)) }}
+      {{ else if and (.Start.After $.sample.Start) (.End.Before $.sample.End) }}
+      {{ template "overlap" (dict "original" $.sample "overlap" . "duration" ($.sample.Duration)) }}
+      {{ else if and (.Start.After $.sample.Start) (.End.After $.sample.End) }}
+      {{ template "overlap" (dict "original" $.sample "overlap" . "duration" ($.sample.End.Sub .Start)) }}
+      {{ else if and (.Start.Before $.sample.Start) (.End.After $.sample.End) }}
+      {{ template "overlap" (dict "original" $.sample "overlap" . "duration" (.Duration)) }}
+      {{ else }}
+      error
+      {{ end }} overlap
+    </li>
+    {{ end }}
+    {{ end }}
+  </ul>
 </section>
 {{ end }}
 {{ end }}

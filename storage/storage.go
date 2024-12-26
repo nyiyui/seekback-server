@@ -333,3 +333,60 @@ func (s *Storage) All(ctx context.Context) (sps []SamplePreviewWithSnippet, err 
 	}
 	return sps, nil
 }
+
+type SearchOptions struct {
+	Query                   string
+	StartAfter, StartBefore *time.Time
+	EndAfter, EndBefore     *time.Time
+}
+
+func (so *SearchOptions) SetOverlap(start, end time.Time) {
+	so.EndAfter = &start
+	so.StartBefore = &end
+}
+
+func (so *SearchOptions) SetContained(start, end time.Time) {
+	so.StartAfter = &start
+	so.EndBefore = &end
+}
+
+func (s *Storage) Search2(opt SearchOptions, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
+	var query string
+	var args []interface{}
+	if opt.Query == "" {
+		query = `
+SELECT * FROM samples
+`
+	} else {
+		query = `
+SELECT * FROM samples JOIN (
+  SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ? ORDER BY rank
+) USING (id)
+`
+		args = append(args, opt.Query)
+	}
+	query += "WHERE TRUE "
+	if opt.StartAfter != nil {
+		query += "AND unixepoch(start) >= ?"
+		args = append(args, opt.StartAfter.Unix())
+	}
+	if opt.StartBefore != nil {
+		query += "AND unixepoch(start) <= ?"
+		args = append(args, opt.StartBefore.Unix())
+	}
+	if opt.EndAfter != nil {
+		query += "AND unixepoch(end) >= ?"
+		args = append(args, opt.EndAfter.Unix())
+	}
+	if opt.EndBefore != nil {
+		query += "AND unixepoch(end) <= ?"
+		args = append(args, opt.EndBefore.Unix())
+	}
+
+	sps = make([]SamplePreviewWithSnippet, 0)
+	err = s.DB.Select(&sps, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return sps, nil
+}

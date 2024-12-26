@@ -25,15 +25,7 @@ Samples
 <ol>
 {{ range .samples }}
   <li>
-    <a href="/sample/{{ .ID }}">
-      {{ .ID }}
-      from {{ .Start }}
-      ({{ .Duration }})
-      - {{ .Summary }}
-      {{ if ne .Transcript "" }}
-      (has transcript)
-      {{ end }}
-    </a>
+    {{ template "sample" (dict "sample" . "tzloc" $.tzloc) }}
     {{ if ne .Snippet "" }}
     {{ .Snippet | renderMarkdown }}
     {{ end }}
