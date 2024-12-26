@@ -312,15 +312,6 @@ func setMinus(a, b []string) []string {
 	return result
 }
 
-func (s *Storage) All(ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
-	sps = make([]SamplePreviewWithSnippet, 0)
-	err = s.DB.Select(&sps, `SELECT * FROM samples`)
-	if err != nil {
-		return nil, err
-	}
-	return sps, nil
-}
-
 type SearchOptions struct {
 	Query                   string
 	StartAfter, StartBefore *time.Time

@@ -124,6 +124,7 @@ func (s *Server) getRDF(w http.ResponseWriter, r *http.Request) {
 type eventsQuery struct {
 	TimeStart time.Time `schema:"time_start"`
 	TimeEnd   time.Time `schema:"time_end"`
+	Overlap   bool      `schema:"overlap"`
 }
 
 type Event struct {
@@ -140,8 +141,15 @@ func (s *Server) getEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	so := storage.SearchOptions{}
+	if query.Overlap {
+		so.SetOverlap(query.TimeStart, query.TimeEnd)
+	} else {
+		so.SetContained(query.TimeStart, query.TimeEnd)
+	}
+
 	var sps []storage.SamplePreviewWithSnippet
-	sps, err = s.st.All(r.Context())
+	sps, err = s.st.Search(so, r.Context())
 	if err != nil {
 		log.Printf("error getting sample list: %s", err)
 		http.Error(w, "error getting sample list", 500)
@@ -152,16 +160,11 @@ func (s *Server) getEvents(w http.ResponseWriter, r *http.Request) {
 		return sps[i].Start.After(sps[j].Start)
 	})
 
-	events := make([]Event, len(sps))
-	for i, sp := range sps {
-		events[i] = Event{sp.ID, fmt.Sprintf("%s from %s", sp.Duration, sp.Start)}
-	}
-
 	enc := json.NewEncoder(w)
-	err = enc.Encode(events)
+	err = enc.Encode(sps)
 	if err != nil {
-		log.Printf("error encoding events: %s", err)
-		http.Error(w, "error encoding events", 500)
+		log.Printf("error encoding json: %s", err)
+		http.Error(w, "error encoding json", 500)
 		return
 	}
 }
