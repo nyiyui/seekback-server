@@ -1,6 +1,7 @@
 package server
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,9 @@ import (
 
 	"github.com/google/safehtml/template"
 )
+
+//go:embed static
+var staticFS embed.FS
 
 func composeFunc(handler http.HandlerFunc, middleware ...func(http.Handler) http.Handler) http.Handler {
 	var h http.Handler = handler
@@ -92,6 +96,7 @@ func (s *Server) setup() error {
 	s.mux.Handle("POST /sample/{id}/transcript", composeFunc(s.sampleTranscriptPost, s.apiAuthz(PermissionWriteTranscript)))
 	s.mux.Handle("POST /sample/{id}/summary", composeFunc(s.sampleSummaryPost, s.mainLogin))
 	//s.mux.Handle("POST /sample/new", composeFunc(s.sampleNew, s.mainLogin))
+	s.mux.Handle("GET /", http.FileServer(http.FS(staticFS)))
 	err := s.parseTemplates()
 	return err
 }
