@@ -312,19 +312,6 @@ func setMinus(a, b []string) []string {
 	return result
 }
 
-func (s *Storage) Search(query string, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
-	sps = make([]SamplePreviewWithSnippet, 0)
-	err = s.DB.Select(&sps, `
-SELECT * FROM samples JOIN (
-  SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ? ORDER BY rank
-) USING (id)
-`, query)
-	if err != nil {
-		return nil, err
-	}
-	return sps, nil
-}
-
 func (s *Storage) All(ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
 	sps = make([]SamplePreviewWithSnippet, 0)
 	err = s.DB.Select(&sps, `SELECT * FROM samples`)
@@ -350,10 +337,10 @@ func (so *SearchOptions) SetContained(start, end time.Time) {
 	so.EndBefore = &end
 }
 
-func (s *Storage) Search2(opt SearchOptions, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
+func (s *Storage) Search(so SearchOptions, ctx context.Context) (sps []SamplePreviewWithSnippet, err error) {
 	var query string
 	var args []interface{}
-	if opt.Query == "" {
+	if so.Query == "" {
 		query = `
 SELECT * FROM samples
 `
@@ -363,24 +350,24 @@ SELECT * FROM samples JOIN (
   SELECT id, snippet(samples_fts, -1, '**', '**', '…', 64) AS snippet FROM samples_fts WHERE samples_fts MATCH ? ORDER BY rank
 ) USING (id)
 `
-		args = append(args, opt.Query)
+		args = append(args, so.Query)
 	}
 	query += "WHERE TRUE "
-	if opt.StartAfter != nil {
+	if so.StartAfter != nil {
 		query += "AND unixepoch(start) >= ?"
-		args = append(args, opt.StartAfter.Unix())
+		args = append(args, so.StartAfter.Unix())
 	}
-	if opt.StartBefore != nil {
+	if so.StartBefore != nil {
 		query += "AND unixepoch(start) <= ?"
-		args = append(args, opt.StartBefore.Unix())
+		args = append(args, so.StartBefore.Unix())
 	}
-	if opt.EndAfter != nil {
+	if so.EndAfter != nil {
 		query += "AND unixepoch(end) >= ?"
-		args = append(args, opt.EndAfter.Unix())
+		args = append(args, so.EndAfter.Unix())
 	}
-	if opt.EndBefore != nil {
+	if so.EndBefore != nil {
 		query += "AND unixepoch(end) <= ?"
-		args = append(args, opt.EndBefore.Unix())
+		args = append(args, so.EndBefore.Unix())
 	}
 
 	sps = make([]SamplePreviewWithSnippet, 0)

@@ -188,7 +188,7 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 		so.SetOverlap(*query.TimeStart, *query.TimeEnd)
 	}
 
-	sps, err := s.st.Search2(so, r.Context())
+	sps, err := s.st.Search(so, r.Context())
 	if err != nil {
 		log.Printf("error getting sample list: %s", err)
 		http.Error(w, fmt.Sprintf("error getting sample list: %s", err), 500)
@@ -227,7 +227,7 @@ func (s *Server) sampleView(w http.ResponseWriter, r *http.Request) {
 	}
 	so := storage.SearchOptions{}
 	so.SetOverlap(sample.Start, *sample.End)
-	overlaps, err := s.st.Search2(so, r.Context())
+	overlaps, err := s.st.Search(so, r.Context())
 	if err != nil {
 		log.Printf("error getting overlaps: %s", err)
 		http.Error(w, "error getting overlaps", 500)
