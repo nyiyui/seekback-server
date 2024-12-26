@@ -142,7 +142,6 @@ func (s *Server) getEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error getting sample list", 500)
 		return
 	}
-	sps = filterSamplePreviews(sps, &query.TimeStart, &query.TimeEnd)
 
 	sort.Slice(sps, func(i, j int) bool {
 		return sps[i].Start.After(sps[j].Start)
@@ -184,18 +183,17 @@ func (s *Server) samplesView(w http.ResponseWriter, r *http.Request) {
 		query.TimeEnd = nil
 	}
 
-	var sps []storage.SamplePreviewWithSnippet
-	if query.Query != "" {
-		sps, err = s.st.Search(query.Query, r.Context())
-	} else {
-		sps, err = s.st.All(r.Context())
+	so := storage.SearchOptions{Query: query.Query}
+	if query.TimeStart != nil && query.TimeEnd != nil {
+		so.SetOverlap(*query.TimeStart, *query.TimeEnd)
 	}
+
+	sps, err := s.st.Search2(so, r.Context())
 	if err != nil {
 		log.Printf("error getting sample list: %s", err)
 		http.Error(w, fmt.Sprintf("error getting sample list: %s", err), 500)
 		return
 	}
-	sps = filterSamplePreviews(sps, query.TimeStart, query.TimeEnd)
 
 	sort.Slice(sps, func(i, j int) bool {
 		return sps[i].Start.After(sps[j].Start)
@@ -308,15 +306,4 @@ func (s *Server) fileServe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFile(w, r, filepath.Join(s.st.SamplesPath, name))
-}
-
-func filterSamplePreviews[T storage.HasSamplePreview](vs []T, timeStart, timeEnd *time.Time) []T {
-	sps2 := make([]T, 0)
-	for _, v := range vs {
-		sp := v.SamplePreview_()
-		if (timeStart == nil || sp.Start.After(*timeStart)) && (timeEnd == nil || sp.Start.Before(*timeEnd)) {
-			sps2 = append(sps2, v)
-		}
-	}
-	return sps2
 }
