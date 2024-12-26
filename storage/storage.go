@@ -46,6 +46,13 @@ func (sp SamplePreview) SamplePreview_() SamplePreview {
 	return sp
 }
 
+func (sp SamplePreview) TimeRange() (start, end time.Time) {
+	if sp.End != nil {
+		return sp.Start, *sp.End
+	}
+	return sp.Start, sp.Start.Add(sp.Duration)
+}
+
 type SamplePreviewWithSnippet struct {
 	SamplePreview
 	Snippet string `db:"snippet"`
