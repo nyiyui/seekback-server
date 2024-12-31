@@ -62,12 +62,12 @@ Sample {{ .ID }}
 <section id="summary">
   {{ if .sample.Summary }}
   <h2>Summary</h2>
-  {{ .sample.Summary }}
+  {{ .sample.Summary | renderMarkdown }}
   {{ else }}
   <h2>Add Summary</h2>
   {{ end }}
   <form action="/sample/{{ .sample.ID }}/summary" method="post">
-    <textarea name="summary" required value="{{ .sample.Summary }}"></textarea>
+    <textarea name="summary" required>{{ .sample.Summary }}</textarea>
     <button type="submit">
       {{ if .sample.Summary }}
       Update Summary
