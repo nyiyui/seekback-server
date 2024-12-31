@@ -17,6 +17,7 @@ type Permission string
 
 const (
 	PermissionWriteTranscript Permission = "write:transcript"
+	PermissionReadEvents      Permission = "read:events"
 )
 
 func (s *Server) apiAuthz(permissionsRequired ...Permission) func(next http.Handler) http.Handler {

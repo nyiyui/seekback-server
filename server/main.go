@@ -88,7 +88,7 @@ func (s *Server) setup() error {
 	s.mux.Handle("POST /login/settings", composeFunc(s.loginSettings, s.mainLogin))
 
 	s.mux.Handle("GET /rdf/all", composeFunc(s.getRDF, s.mainLogin))
-	s.mux.Handle("GET /events", composeFunc(s.getEvents, s.mainLogin))
+	s.mux.Handle("GET /events", composeFunc(s.getEvents, s.apiAuthz(PermissionReadEvents)))
 
 	s.mux.Handle("GET /samples", composeFunc(s.samplesView, s.mainLogin))
 	s.mux.Handle("GET /sample/{id}", composeFunc(s.sampleView, s.mainLogin))
@@ -133,7 +133,14 @@ type Event struct {
 }
 
 func (s *Server) getEvents(w http.ResponseWriter, r *http.Request) {
-	decoder := newDecoder(r)
+	decoder := schema.NewDecoder()
+	decoder.RegisterConverter(time.Time{}, func(s string) reflect.Value {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return reflect.ValueOf(time.Time{})
+		}
+		return reflect.ValueOf(t)
+	})
 	var query eventsQuery
 	err := decoder.Decode(&query, r.URL.Query())
 	if err != nil {
