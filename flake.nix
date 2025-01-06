@@ -11,13 +11,10 @@
       flake-utils,
       ...
     }@attrs:
-    let
-      pkgs = import nixpkgs { config.allowUnfree = true; };
-    in
     flake-utils.lib.eachSystem flake-utils.lib.defaultSystems (
       system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs { inherit system; };
         build =
           pkgs:
           (pkgs.buildGoModule rec {
