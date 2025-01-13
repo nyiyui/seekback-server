@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/gorilla/sessions"
@@ -32,9 +33,11 @@ func main() {
 	var dbPath string
 	var bindAddress string
 	var tokensPath string
+	var watchInterval time.Duration
 	flag.StringVar(&bindAddress, "bind", "127.0.0.1:8080", "bind address")
 	flag.StringVar(&dbPath, "db-path", "db.sqlite3", "path to database")
 	flag.StringVar(&tokensPath, "tokens-path", "", "path to tokens")
+	flag.DurationVar(&watchInterval, "watch-interval", 5*time.Minute, "interval to watch samples directory")
 	flag.Parse()
 
 	data, err := os.ReadFile(tokensPath)
@@ -70,6 +73,11 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("files and database synced.")
+
+	if watchInterval > 0 {
+		log.Printf("watching samples directory.")
+		go st.WatchAndSyncFiles(watchInterval)
+	}
 
 	authKey, err := hex.DecodeString(getenvNonEmpty("SEEKBACK_SERVER_STORE_AUTH_KEY"))
 	if err != nil {
