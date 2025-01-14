@@ -37,6 +37,9 @@ func (s *Storage) WatchAndSyncFiles(interval time.Duration) {
 			if err != nil {
 				log.Printf("WatchAndSyncFiles: sync files: %s", err)
 				continue
+			} else {
+				log.Printf("WatchAndSyncFiles: files synced.")
+				lastSync = time.Now()
 			}
 		} else {
 			log.Println("WatchAndSyncFiles: no new files.")
