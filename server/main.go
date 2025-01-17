@@ -96,7 +96,10 @@ func (s *Server) setup() error {
 	s.mux.Handle("POST /sample/{id}/transcript", composeFunc(s.sampleTranscriptPost, s.apiAuthz(PermissionWriteTranscript)))
 	s.mux.Handle("POST /sample/{id}/summary", composeFunc(s.sampleSummaryPost, s.mainLogin))
 	//s.mux.Handle("POST /sample/new", composeFunc(s.sampleNew, s.mainLogin))
-	s.mux.Handle("GET /", http.FileServer(http.FS(staticFS)))
+	s.mux.Handle("GET /static", http.FileServer(http.FS(staticFS)))
+	s.mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/samples", http.StatusFound) // we may want to change this redirect later on
+	})
 	err := s.parseTemplates()
 	return err
 }
